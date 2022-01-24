@@ -15,20 +15,22 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python import ipu
 
+# ipu.utils.set_convolution_options(0.4)
+
 
 def main(args):
     
-    num_replicas = 4
+    num_ipus = args.num_ipus
     config = ipu.config.IPUConfig()
-    config.auto_select_ipus = num_replicas
+    config.auto_select_ipus = num_ipus
     config.configure_ipu_system()
 
     strategy = ipu.ipu_strategy.IPUStrategy()
     batch_size = args.batch_size
     # global_batch_size = batch_size * strategy.num_replicas_in_sync
-    global_batch_size = batch_size * num_replicas
+    global_batch_size = batch_size * num_ipus
     print(f"global batch size: {global_batch_size}")
-    print(f'Number of devices: {strategy.num_replicas_in_sync}')
+    print(f'Number of IPUs: {num_ipus}')
 
     with strategy.scope():
 
@@ -116,6 +118,9 @@ def main(args):
 
 if __name__ == '__main__':
     parser = configargparse.ArgumentParser()
+    # IPUs
+    parser.add_argument('--num_ipus', type=int, default=1,
+                        help='Number of IPUs')
     # data
     parser.add_argument('--dataset', type=str, default='mnist',
                         choices=['mnist', 'cesm', 'isabel'],
