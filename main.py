@@ -18,9 +18,9 @@ def main(args):
     config.configure_ipu_system()
     # strategy = tf.distribute.MirroredStrategy()
     strategy = ipu.ipu_strategy.IPUStrategy()
-    batch_size = args.batch_size
+    global_batch_size = args.batch_size
     # global_batch_size = batch_size * strategy.num_replicas_in_sync
-    global_batch_size = batch_size * num_ipus
+    # global_batch_size = batch_size * num_ipus
     print(f"global batch size: {global_batch_size}")
     print(f'Number of IPUs: {num_ipus}')
 
@@ -28,7 +28,7 @@ def main(args):
 
         dataio = data_io.Data(args.data_path, global_batch_size, args.tile_size)
         data = dataio.load_data(args.dataset)
-
+        
         # Model Initialization
         in_shape = list(dataio.data_dim[1:])
         model_arch = utils.get_model_arch(args.model_arch)
@@ -61,7 +61,7 @@ def main(args):
         vae.compile(optimizer='adamax', loss="mse", steps_per_execution=steps_per_execution)
         history = vae.fit(
                 data,
-                batch_size=batch_size,
+                batch_size=global_batch_size,
                 epochs=epochs,
                 verbose=2)
         print(f"Training time: {timeit.default_timer()-start_training}")
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay_norm_anneal', action='store_true', default=False,
                         help='This flag enables annealing the lambda coefficient from '
                              '--weight_decay_norm_init to --weight_decay_norm.')
-    parser.add_argument('--epochs', type=int, default=100,
+    parser.add_argument('--epochs', type=int, default=2,
                         help='num of training epochs')
     parser.add_argument('--warmup_epochs', type=int, default=10,
                         help='num of training epochs in which lr is warmed up')

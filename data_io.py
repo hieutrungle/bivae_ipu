@@ -43,8 +43,6 @@ class Data():
         self.normalizer = DataNormalizer(min_scale=0.0, max_scale=1.0)
 
         (x_train, _), (x_test, _) = tf.keras.datasets.mnist.load_data()
-        print(f"x_train.shape: {x_train.shape}")
-        print(f"x_test.shape: {x_test.shape}")
         data = np.vstack([x_train, x_test])
         data = self.normalizer.normalize_minmax(data)
         data = data[..., np.newaxis]

@@ -3,7 +3,7 @@
 1. Training: 
 
 Mnist:
-`python main.py`
+`python main.py --num_ipus 1 --epochs 2 --batch_size 10`
 
 # GitHub URL
 **[]()**
