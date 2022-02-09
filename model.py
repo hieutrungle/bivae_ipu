@@ -291,9 +291,6 @@ class VariationalAutoencoder(tf.keras.Model):
             else:
                 x = cell(x)
 
-        # param to calculate kl divergence
-        # self.log_qs, self.log_ps = list(), list()
-
         idx_dec = 0
         ftr = self.enc0(x)
         mu_and_log_sigma_q = self.enc_mu_log_sig[idx_dec](ftr)
@@ -304,13 +301,11 @@ class VariationalAutoencoder(tf.keras.Model):
         nf_offset = 0
         for i in range(self.num_nf):
             z, log_det = self.nf_cells[i](z, ftr)
-            # log_q = tf.math.subtract(log_q, log_det)
         nf_offset += self.num_nf
         
         # prior for z0
         mu_p, log_sigma_p = tf.zeros(shape=tf.shape(z)), tf.zeros(shape=tf.shape(z))
         zp, log_p = self.sampler_ps[idx_dec](mu_p, log_sigma_p)
-        # kl = tf.reduce_sum(self.sampler_qs[idx_dec].cal_kl(mu_q, log_sigma_q, mu_p, log_sigma_p))
         kl = self.kl_calculator(mu_q, log_sigma_q, mu_p, log_sigma_p)
         kl_loss = kl
 
@@ -338,15 +333,10 @@ class VariationalAutoencoder(tf.keras.Model):
                     # apply NF
                     for n in range(self.num_nf):
                         z, log_det = self.nf_cells[nf_offset + n](z, ftr)
-                        # log_q = tf.math.subtract(log_q, log_det)
                     nf_offset += self.num_nf
-                    # self.log_qs.append(log_q)
 
                     # evaluate log_p(z)
                     zp, log_p = self.sampler_ps[idx_dec](mu_p, log_sigma_p)
-                    # self.log_ps.append(log_p)
-
-                    # kl = tf.reduce_sum(self.sampler_qs[idx_dec].cal_kl(mu_q, log_sigma_q, mu_p, log_sigma_p))
                     kl = self.kl_calculator(mu_q, log_sigma_q, mu_p, log_sigma_p)
                     kl_loss = tf.add(kl_loss, kl)
                     
@@ -379,22 +369,6 @@ class VariationalAutoencoder(tf.keras.Model):
             kl_all.append(tf.reduce_sum(kl_per_var, axis=[1, 2, 3]))
         return total_log_q, total_log_p, kl_all, kl_diag
     
-    # def cal_kl_components(self):
-    #     kl_all, kl_diag = [], []
-    #     total_log_p, total_log_q = 0.0, 0.0
-    #     for sampler_q, sampler_p, log_q, log_p in zip(self.sampler_qs, self.sampler_ps, self.log_qs, self.log_ps):
-    #         kl_per_var = sampler_q.kl(sampler_p)
-    #         # if self.is_nf:
-    #         #     kl_per_var = log_q - log_p
-    #         # else:
-    #         #     kl_per_var = sampler_q.kl(sampler_p)
-
-    #         kl_diag.append(tf.reduce_mean(tf.reduce_sum(kl_per_var, axis=[1, 2]), axis=0))
-    #         kl_all.append(tf.reduce_sum(kl_per_var, axis=[1, 2, 3]))
-    #         # total_log_q += tf.reduce_sum(log_q, axis=[1, 2, 3])
-    #         # total_log_p += tf.reduce_sum(log_p, axis=[1, 2, 3])
-    #     return total_log_q, total_log_p, kl_all, kl_diag
-
     def generate_images(self, ftrs):
         # z0_size = [num_samples] + self.z0_size
         assert ftrs[0].shape[0]==self.sampler_qs[0].shape[0], \

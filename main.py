@@ -3,19 +3,11 @@ import sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import configargparse
 from utils import utils
-from train import train
-from eval import evaluate
-from generate import generate
-from reconstruct import reconstruct_img
-# from hard_code_model import VariationalAutoencoder
 from model import VariationalAutoencoder
 import data_io
 import timeit
-import numpy as np
 import tensorflow as tf
 from tensorflow.python import ipu
-
-# ipu.utils.set_convolution_options(0.4)
 
 
 def main(args):
@@ -24,7 +16,7 @@ def main(args):
     config = ipu.config.IPUConfig()
     config.auto_select_ipus = num_ipus
     config.configure_ipu_system()
-
+    # strategy = tf.distribute.MirroredStrategy()
     strategy = ipu.ipu_strategy.IPUStrategy()
     batch_size = args.batch_size
     # global_batch_size = batch_size * strategy.num_replicas_in_sync
@@ -35,10 +27,7 @@ def main(args):
     with strategy.scope():
 
         dataio = data_io.Data(args.data_path, global_batch_size, args.tile_size)
-
-        # iterator = iter(dataio.load_data(args.dataset))
         data = dataio.load_data(args.dataset)
-        # sys.exit()
 
         # Model Initialization
         in_shape = list(dataio.data_dim[1:])
@@ -47,7 +36,6 @@ def main(args):
 
         vae = VariationalAutoencoder(args, model_arch, global_batch_size, in_shape)
         print(f"is using se: {vae.use_se}\n")
-        # vae.build(input_shape=([None]+ in_shape))
         vae.model().summary()
 
         # Set up for training, evaluation, or generation
@@ -64,56 +52,19 @@ def main(args):
                 print(resume_checkpoint)
             print(f"Model weights successfully loaded.")
             
-        # sys.exit()
+        # Training
+        # Training parameters
+        epochs = args.epochs
+        steps_per_execution = dataio.data_dim[0] // global_batch_size
 
-        # Training, Generating, or Evaluating the model
-        if args.generate:
-            print(f"Generating images...")
-            if (args.dataset == "mnist"):
-                generate(vae, iterator, args.path_img_output)
-            else:
-                reconstruct_img(vae, iterator, normalizer=dataio.normalizer, padder=dataio.padder, 
-                                img_folder=args.path_img_output, img_name='gen_image.png')
-        else:
-            if args.eval:
-                print("Evaluation...")
-                evaluate(vae, iterator, model_path=model_path, 
-                        save_encoding=args.save_encoding, padding=None)
-            else:
-                # Training parameters
-                epochs = args.epochs
-                lr = args.learning_rate
-                lr_min = args.learning_rate_min
-                train_portion = args.train_portion
-                steps_per_execution = dataio.data_dim[0] // global_batch_size
-                # data = tf.data.Dataset.zip((data,data))
-                # optimizer
-                # decay_steps = int(dataio.data_dim[0] * train_portion) * (epochs/4)
-                # decay_steps = int(steps_per_execution*0.8)
-                # lr_schedule = tf.keras.optimizers.schedules.CosineDecayRestarts(
-                #     lr, first_decay_steps=decay_steps,
-                #     t_mul=10, m_mul=0.9, alpha=lr_min/lr)
-                # optimizer = tf.keras.optimizers.Adamax(learning_rate=lr)
-
-                # train(vae, iterator, epochs=epochs, optimizer=optimizer, train_portion=train_portion,
-                #    model_dir=model_path, batch_size=global_batch_size,
-                #    steps_per_execution=steps_per_execution,
-                #    kl_anneal_portion=args.kl_anneal_portion,
-                #    epochs_til_ckpt=args.epochs_til_ckpt, 
-                #    steps_til_summary=args.steps_til_summary,
-                #    resume_checkpoint=resume_checkpoint, strategy=strategy)
-
-                # optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-                start_training = timeit.default_timer()
-                vae.compile(optimizer='sgd', loss="mse",steps_per_execution=steps_per_execution)
-                history = vae.fit(
-                        data,
-                        batch_size=batch_size,
-                        epochs=args.epochs,
-                        # shuffle=True,
-                        verbose=2)
-                print(f"Training time: {timeit.default_timer()-start_training}")
-
+        start_training = timeit.default_timer()
+        vae.compile(optimizer='adamax', loss="mse", steps_per_execution=steps_per_execution)
+        history = vae.fit(
+                data,
+                batch_size=batch_size,
+                epochs=epochs,
+                verbose=2)
+        print(f"Training time: {timeit.default_timer()-start_training}")
 
 
 if __name__ == '__main__':
@@ -152,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--logging_root', type=str, default='./logs',
                         help="root for logging")
     # optimization
-    parser.add_argument('--batch_size', type=int, default=32, 
+    parser.add_argument('--batch_size', type=int, default=10, 
                         help="batch size. default=32")
     parser.add_argument('--learning_rate', type=float, default=1e-3,
                         help='init learning rate')
@@ -181,7 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_channels_of_latent', type=int, default=1,
                         help='number of channels of latent variables')
     # Initial channel
-    parser.add_argument('--num_initial_channel', type=int, default=16,
+    parser.add_argument('--num_initial_channel', type=int, default=36,
                         help='number of channels in pre-enc and post-dec')
     # Share parameter of preprocess and post-process blocks
     parser.add_argument('--num_process_blocks', type=int, default=1,
@@ -208,7 +159,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_postprocess_cells', type=int, default=2,
                         help='number of cells per post-process block')
     # Squeeze-and-Excitation
-    parser.add_argument('--use_se', action='store_true', default=False,
+    parser.add_argument('--use_se', action='store_true', default=True,
                         help='This flag enables squeeze and excitation.')
     # Resume
     parser.add_argument('--resume', action='store_true', default=False,
