@@ -43,15 +43,6 @@ def main(args):
         model_path = args.model_path
         print(f"\nlogging information to: {model_path}\n")
         
-        resume_checkpoint={}
-        if args.resume or args.generate:
-            weight_path = model_path + '/checkpoints/' + f'model_{args.iter:06d}'
-            vae.load_weights(weight_path)
-            if args.resume:
-                print(f"Resume trainig...")
-                resume_checkpoint['resume_epoch'] = args.iter
-                print(resume_checkpoint)
-            print(f"Model weights successfully loaded.")
             
         # sys.exit()
         # Training
