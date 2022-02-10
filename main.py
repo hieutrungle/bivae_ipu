@@ -3,6 +3,7 @@ import sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 import configargparse
 from utils import utils
+# from hard_code_test_model import VariationalAutoencoder
 from model import VariationalAutoencoder
 import data_io
 import timeit
@@ -52,6 +53,7 @@ def main(args):
                 print(resume_checkpoint)
             print(f"Model weights successfully loaded.")
             
+        # sys.exit()
         # Training
         # Training parameters
         epochs = args.epochs
