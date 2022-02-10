@@ -17,10 +17,6 @@ class Data():
     def load_data(self, data_name):
         if data_name == "mnist":
             data = self.load_mnist()
-        elif data_name == "cesm":
-            data = self.load_cesm()
-        elif data_name == "isabel":
-            data = self.load_isabel()
         else:
             raise FileNotFoundError(
                     errno.ENOENT, os.strerror(errno.ENOENT), data_name)

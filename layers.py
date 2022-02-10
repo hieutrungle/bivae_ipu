@@ -2,7 +2,6 @@ import tensorflow_addons as tfa
 from collections import OrderedDict
 from utils import utils
 import os
-import sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from tensorflow.keras.utils import get_custom_objects
 import tensorflow as tf
@@ -68,40 +67,6 @@ class FactorizedReduce(tf.keras.layers.Layer):
         conv4 = self.conv_4(x[:, 1:, :, :])
         out = tf.concat([conv1, conv2, conv3, conv4], axis=-1)
         return out
-
-@tf.keras.utils.register_keras_serializable(package='Custom', name='sr')
-class SpectralNormRegularizer(tf.keras.regularizers.Regularizer):
-    def __init__(self, sr=0.1, num_iter=1) -> None:
-        super().__init__()
-        self.sr = sr
-        self.num_iter = num_iter
-        # self.v = []
-        # self.u = []
-
-    def __call__(self, x):
-        h, w, c_in, c_out = x.shape
-        num_iter = self.num_iter
-        # if self.is_init:
-        #     self.v = tf.random.normal(shape=(h,w,c_out,1))
-        #     num_iter = 10 * num_iter
-        #     self.is_init = False
-
-        # for _ in range(num_iter):
-        #     self.u = tf.linalg.normalize(tf.matmul(x, self.v), ord=2)[0]
-        #     self.v = tf.linalg.normalize(tf.matmul(tf.transpose(x, perm=[0,1,3,2]), self.u), ord=2)[0]
-        # sigma = tf.matmul(tf.transpose(self.u, perm=[0,1,3,2]), tf.matmul(x, self.v))
-
-        v = tf.random.normal(shape=(h,w,c_out,1))
-
-        for _ in range(num_iter):
-            u = tf.linalg.normalize(tf.matmul(x, v), ord=2)[0]
-            v = tf.linalg.normalize(tf.matmul(tf.transpose(x, perm=[0,1,3,2]), u), ord=2)[0]
-        sigma = tf.matmul(tf.transpose(u, perm=[0,1,3,2]), tf.matmul(x, v))
-
-        return self.sr*tf.reduce_sum(sigma)
-
-    def get_config(self):
-        return {'sr': float(self.sr)}
 
 
 class ConvWN(tf.keras.layers.Layer):
@@ -334,99 +299,9 @@ class PrePriorLayer(tf.keras.layers.Layer):
         super().__init__(name=name, **kwargs)
         self.shape = shape
 
-        # self.pre_prior = tf.Variable(tf.random.normal(shape=self.shape), trainable=True)
-
     def call(self, pre_prior, z):
         return tf.broadcast_to(pre_prior, [tf.shape(z)[0]] + list(self.shape))
 
-
-def test_ConvWNElu_resnet(num_convWNElu, channel, strides, input_shape):
-    kernel_initializer=tf.keras.initializers.HeNormal()
-    padding = "same"
-    m = get_skip_connection(channel, strides, kernel_initializer, padding)
-
-    inputs = tf.keras.Input(shape=input_shape)
-    x = ConvWNElu(channel, strides=strides)(inputs)
-    for _ in range(num_convWNElu-1):
-        x = ConvWNElu(channel)(x)
-        # print(f"x.shape: {x.shape}")
-    x = SqueezeAndExcitation(channel)(x)
-    x_shortcut = m(inputs)
-    # print(f"x_shortcut.shape: {x_shortcut.shape}")
-    outputs = tf.keras.layers.Add()([x, x_shortcut])
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-def test_enc_combiner(channel1, channel2, strides, input_shape):
-    inputs = tf.keras.Input(shape=input_shape)
-    x1 = ConvWNElu(channel1, strides=strides)(inputs)
-    x2 = ConvWNElu(channel2, strides=strides)(inputs)
-    outputs = EncCombinerCell(channel1, cell_type="enc_combiner")(x1, x2)
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-def test_dec_combiner(channel1, channel2, strides, input_shape):
-    # channel 1
-    inputs = tf.keras.Input(shape=input_shape)
-    x1 = ConvWNElu(channel1, strides=strides)(inputs)
-    x2 = ConvWNElu(channel2, strides=strides)(inputs)
-    outputs = DecCombinerCell(channel1, cell_type="dec_combiner")(x1, x2)
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-def test_inverted_residual(channel, strides, input_shape):
-    m = get_skip_connection(channel, strides)
-
-    inputs = tf.keras.Input(shape=input_shape)
-    x = InvertedResidual(channel, kernel_size=5, strides=strides, ex=6)(inputs)
-    x = SqueezeAndExcitation(channel)(x)
-    print(f"x.shape: {x.shape}")
-    x_shortcut = m(inputs)
-    print(f"x_shortcut.shape: {x_shortcut.shape}")
-    outputs = tf.keras.layers.Add()([x, x_shortcut])
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
-
-def test(test):
-
-    input_shape = (32, 32, 64)
-    for strides, name in zip([-1, 1, 2],["up-sampling", "identity", "down-sampling"]):
-        print(f"strides: {strides}, name: {name}")
-        if test=="convWNElu":
-            num_convWNElu = 1
-            channel = input_shape[-1]*strides if strides > 0 else input_shape[-1]//2
-            model = test_ConvWNElu_resnet(num_convWNElu, channel=channel, strides=strides, input_shape=input_shape)
-            model.summary()
-        elif test == "enc_combiner":
-            channel1 = input_shape[-1]*strides if strides > 0 else input_shape[-1]//2
-            channel2 = input_shape[-1]*strides*2 if strides > 0 else input_shape[-1]//4
-            model = test_enc_combiner(channel1, channel2, strides, input_shape)
-            model.summary()
-        elif test == "dec_combiner":
-            channel1 = input_shape[-1]*strides if strides > 0 else input_shape[-1]//2
-            channel2 = input_shape[-1]*strides*2 if strides > 0 else input_shape[-1]//4
-            model = test_dec_combiner(channel1, 20, strides, input_shape)
-            model.summary()
-        elif test == "invert_res":
-            channel = input_shape[-1]*strides if strides > 0 else input_shape[-1]//2
-            model = test_inverted_residual(channel=channel, strides=strides, input_shape=input_shape)
-            model.summary()
-        print("\n")
-
-def test_cell(channel, cell_type, arch_type, input_shape, use_se):
-    model_arch = utils.get_model_arch(arch_type)
-    inputs = tf.keras.Input(shape=input_shape)
-    outputs = Cell(channel, cell_type=cell_type, cell_archs=model_arch[cell_type], use_se=use_se)(inputs)
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
-
 if __name__ == '__main__':
-
-    input_shape = (32, 32, 64)
-    arch_type = "res_wnelu"
-    model_arch = utils.get_model_arch(arch_type)
-    print(model_arch)
-    for cell_type in model_arch.keys():
-        print(f"cell_type: {cell_type}")
-        strides = get_stride_for_cell_type(cell_type)
-        channel = input_shape[-1]*strides if strides > 0 else input_shape[-1]//2
-        use_se = False if cell_type=="ar_nn" else True
-        model = test_cell(channel=channel, cell_type=cell_type, arch_type=arch_type, input_shape=input_shape, use_se=use_se)
-        model.summary()
-        print("\n")
+    pass
     

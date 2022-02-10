@@ -44,27 +44,3 @@ class DataNormalizer:
         for attribute, value in self.__dict__.items():
             print(attribute, '=', value)
         
-    def test_normalizer(data:np.ndarray):
-        data_normalizer = DataNormalizer()
-        print("maximum value before normalization: ", data.max())
-        print("minimum value before normalization: ", data.min())
-    
-        print("\nNORMALIZING DATA")
-    
-        normalized_data = data_normalizer.normalize_log10(data)
-        print("maximum normalized value after log10_normalization: ", normalized_data.max())
-        print("minimum normalized value after log10_normalization: ", normalized_data.min())
-    
-        normalized_data = data_normalizer.normalize_minmax(normalized_data)
-        print("maximum normalized value after minmax_normalization: ", normalized_data.max())
-        print("minimum normalized value after minmax_normalization: ", normalized_data.min())
-    
-        print("\nDENORMALIZING DATA")
-    
-        denormalized_data = data_normalizer.denormalize_minmax(normalized_data)
-        print("maximum denormalized value after minmax_dermalization: ", denormalized_data.max())
-        print("minimum denormalized value after minmax_dermalization: ", denormalized_data.min())
-    
-        denormalized_data = data_normalizer.denormalize_log10(denormalized_data)
-        print("maximum denormalized value after log10_dermalization: ", denormalized_data.max())
-        print("minimum denormalized value after log10_dermalization: ", denormalized_data.min())
