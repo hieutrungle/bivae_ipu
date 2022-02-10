@@ -113,12 +113,11 @@ class ConvWN(tf.keras.layers.Layer):
                 kernel_regularizer=tf.keras.regularizers.L2(l2=0.0025),
                 name=None, **kwargs):
         super().__init__(name=name, **kwargs)
-        self.conv2d_weight_normalization = tfa.layers.WeightNormalization(
-                                tf.keras.layers.Conv2D(channel, kernel_size, strides=strides,
+        self.conv2d_weight_normalization = tf.keras.layers.Conv2D(channel, kernel_size, strides=strides,
                                 padding=padding, groups=groups,
                                 kernel_initializer=kernel_initializer, 
                                 bias_initializer=bias_initializer,
-                                kernel_regularizer=kernel_regularizer))
+                                kernel_regularizer=kernel_regularizer)
     
     def call(self, x):
         x = self.conv2d_weight_normalization(x)
