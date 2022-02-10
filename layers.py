@@ -78,14 +78,16 @@ class ConvWN(tf.keras.layers.Layer):
                 kernel_regularizer=tf.keras.regularizers.L2(l2=0.0025),
                 name=None, **kwargs):
         super().__init__(name=name, **kwargs)
-        self.conv2d_weight_normalization = tf.keras.layers.Conv2D(channel, kernel_size, strides=strides,
+        self.conv2d = tf.keras.layers.Conv2D(channel, kernel_size, strides=strides,
                                 padding=padding, groups=groups,
                                 kernel_initializer=kernel_initializer, 
                                 bias_initializer=bias_initializer,
                                 kernel_regularizer=kernel_regularizer)
+        self.batch_norm = tf.keras.layers.BatchNormalization(momentum=0.99, epsilon=1e-5)
     
     def call(self, x):
-        x = self.conv2d_weight_normalization(x)
+        x = self.conv2d(x)
+        
         return x
 
 class ConvWNElu(tf.keras.layers.Layer):
@@ -267,6 +269,8 @@ class Cell(tf.keras.layers.Layer):
         super().__init__(name=name, **kwargs)
         self.cell_type = cell_type
 
+        self.batch_norm = tf.keras.layers.BatchNormalization(momentum=0.99, epsilon=1e-5)
+        
         strides = get_stride_for_cell_type(self.cell_type)
         self.skip = get_skip_connection(channel, strides)
         self.use_se = use_se
@@ -291,8 +295,9 @@ class Cell(tf.keras.layers.Layer):
 
         x = self.se(x) if self.use_se else x
         x = 0.5 * x
-        x_output = self.add_op([x, x_shortcut])
-        return x_output
+        x = self.add_op([x, x_shortcut])
+        x = self.batch_norm(x)
+        return x
 
 class PrePriorLayer(tf.keras.layers.Layer):
     def __init__(self, shape, name=None, **kwargs):
